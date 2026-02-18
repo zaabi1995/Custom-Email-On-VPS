@@ -283,16 +283,17 @@
   }
 
   // ============ EMPLOYEE CRUD ============
+  function setVal(id, val) { const el = document.getElementById(id); if (el) el.value = val; }
+  function setChecked(id, val) { const el = document.getElementById(id); if (el) el.checked = val; }
+  function getVal(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+  function getChecked(id) { const el = document.getElementById(id); return el ? el.checked : false; }
+
   function openAddModal() {
-    document.getElementById('modalTitle').textContent = 'Add Employee';
-    document.getElementById('empId').value = '';
-    document.getElementById('empName').value = '';
-    document.getElementById('empNameAr').value = '';
-    document.getElementById('empTitle').value = '';
-    document.getElementById('empTitleAr').value = '';
-    document.getElementById('empEmail').value = '';
-    document.getElementById('empPhone').value = '';
-    document.getElementById('empEnabled').checked = true;
+    const t = document.getElementById('modalTitle'); if (t) t.textContent = 'Add Employee';
+    setVal('empId', ''); setVal('empName', ''); setVal('empNameAr', '');
+    setVal('empTitle', ''); setVal('empTitleAr', '');
+    setVal('empEmail', ''); setVal('empPhone', '');
+    setChecked('empEnabled', true);
     openModal('employeeModal');
   }
 
@@ -303,29 +304,29 @@
     } else {
       emp = empStr;
     }
-    document.getElementById('modalTitle').textContent = 'Edit Employee';
-    document.getElementById('empId').value = emp.id;
-    document.getElementById('empName').value = emp.name;
-    document.getElementById('empNameAr').value = emp.name_ar || '';
-    document.getElementById('empTitle').value = emp.title || '';
-    document.getElementById('empTitleAr').value = emp.title_ar || '';
-    document.getElementById('empEmail').value = emp.email;
-    document.getElementById('empPhone').value = emp.phone || '';
-    document.getElementById('empEnabled').checked = !!emp.enabled;
+    const t = document.getElementById('modalTitle'); if (t) t.textContent = 'Edit Employee';
+    setVal('empId', emp.id);
+    setVal('empName', emp.name);
+    setVal('empNameAr', emp.name_ar || '');
+    setVal('empTitle', emp.title || '');
+    setVal('empTitleAr', emp.title_ar || '');
+    setVal('empEmail', emp.email);
+    setVal('empPhone', emp.phone || '');
+    setChecked('empEnabled', !!emp.enabled);
     openModal('employeeModal');
   }
 
   async function saveEmployee(e) {
     e.preventDefault();
-    const id = document.getElementById('empId').value;
+    const id = getVal('empId');
     const data = {
-      name: document.getElementById('empName').value.trim(),
-      name_ar: document.getElementById('empNameAr').value.trim(),
-      title: document.getElementById('empTitle').value.trim(),
-      title_ar: document.getElementById('empTitleAr').value.trim(),
-      email: document.getElementById('empEmail').value.trim(),
-      phone: document.getElementById('empPhone').value.trim(),
-      enabled: document.getElementById('empEnabled').checked,
+      name: getVal('empName'),
+      name_ar: getVal('empNameAr'),
+      title: getVal('empTitle'),
+      title_ar: getVal('empTitleAr'),
+      email: getVal('empEmail'),
+      phone: getVal('empPhone'),
+      enabled: getChecked('empEnabled'),
     };
     if (!data.name || !data.email) {
       showToast('Name and email are required', 'error');
@@ -569,34 +570,40 @@
   function editTemplate(id) {
     const tpl = templates.find(t => t.id === id);
     if (!tpl) return;
-    document.getElementById('templateId').value = tpl.id;
-    document.getElementById('templateNameInput').value = tpl.name;
-    document.getElementById('templateIsDefault').checked = !!tpl.is_default;
-    document.getElementById('templateEditor').value = tpl.html_template;
-    document.getElementById('templateEditorTitle').textContent = 'Edit: ' + tpl.name;
-    document.getElementById('templateEditorCard').style.display = '';
+    setVal('templateId', tpl.id);
+    setVal('templateNameInput', tpl.name);
+    setChecked('templateIsDefault', !!tpl.is_default);
+    setVal('templateEditor', tpl.html_template);
+    const title = document.getElementById('templateEditorTitle');
+    if (title) title.textContent = 'Edit: ' + tpl.name;
+    const card = document.getElementById('templateEditorCard');
+    if (card) { card.style.display = ''; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     livePreviewTemplate();
   }
 
   function newTemplate() {
-    document.getElementById('templateId').value = '';
-    document.getElementById('templateNameInput').value = '';
-    document.getElementById('templateIsDefault').checked = false;
-    document.getElementById('templateEditor').value = '';
-    document.getElementById('templateEditorTitle').textContent = 'New Template';
-    document.getElementById('templateEditorCard').style.display = '';
-    document.getElementById('templatePreviewContent').innerHTML = '<p class="text-muted text-sm text-center" style="padding:40px;">Start typing to see live preview</p>';
+    setVal('templateId', '');
+    setVal('templateNameInput', '');
+    setChecked('templateIsDefault', false);
+    setVal('templateEditor', '');
+    const title = document.getElementById('templateEditorTitle');
+    if (title) title.textContent = 'New Template';
+    const card = document.getElementById('templateEditorCard');
+    if (card) { card.style.display = ''; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    const preview = document.getElementById('templatePreviewContent');
+    if (preview) preview.innerHTML = '<p class="text-muted text-sm text-center" style="padding:40px;">Start typing to see live preview</p>';
   }
 
   function cancelEditTemplate() {
-    document.getElementById('templateEditorCard').style.display = 'none';
+    const card = document.getElementById('templateEditorCard');
+    if (card) card.style.display = 'none';
   }
 
   async function saveTemplate() {
-    const id = document.getElementById('templateId').value;
-    const name = document.getElementById('templateNameInput').value.trim() || 'Untitled';
-    const html = document.getElementById('templateEditor').value;
-    const is_default = document.getElementById('templateIsDefault').checked;
+    const id = getVal('templateId');
+    const name = getVal('templateNameInput') || 'Untitled';
+    const html = getVal('templateEditor');
+    const is_default = getChecked('templateIsDefault');
     try {
       const result = await api('POST', '/api/templates', { id: id || undefined, name, html_template: html, is_default });
       if (result.success) {
@@ -684,17 +691,10 @@
 
   // ============ SETTINGS ============
   function renderSettings() {
-    // Populate settings form fields
-    const fields = ['company_name', 'company_name_ar', 'address', 'website', 'default_phone'];
-    fields.forEach(f => {
-      const el = document.getElementById('setting_' + f);
-      if (el) el.value = settings[f] || '';
+    ['company_name', 'company_name_ar', 'address', 'website', 'default_phone'].forEach(f => {
+      setVal('setting_' + f, settings[f] || '');
     });
-
-    const logoType = document.getElementById('setting_logo_type');
-    if (logoType) logoType.value = settings.logo_type || 'gif';
-
-    // Show current logos
+    setVal('setting_logo_type', settings.logo_type || 'gif');
     renderLogoPreview();
   }
 
@@ -708,10 +708,8 @@
   async function saveSettings(e) {
     e.preventDefault();
     const data = {};
-    const fields = ['company_name', 'company_name_ar', 'address', 'website', 'default_phone', 'logo_type'];
-    fields.forEach(f => {
-      const el = document.getElementById('setting_' + f);
-      if (el) data[f] = el.value;
+    ['company_name', 'company_name_ar', 'address', 'website', 'default_phone', 'logo_type'].forEach(f => {
+      data[f] = getVal('setting_' + f);
     });
     try {
       const result = await api('POST', '/api/settings', data);
@@ -748,9 +746,9 @@
 
   async function changePassword(e) {
     e.preventDefault();
-    const current = document.getElementById('currentPassword').value;
-    const newPass = document.getElementById('newPassword').value;
-    const confirm = document.getElementById('confirmPassword').value;
+    const current = getVal('currentPassword');
+    const newPass = getVal('newPassword');
+    const confirm = getVal('confirmPassword');
     if (newPass !== confirm) {
       showToast('Passwords do not match', 'error');
       return;
@@ -971,6 +969,9 @@
       showToast('No accounts selected', 'error');
       return;
     }
+    // Disable button during import
+    const btn = document.querySelector('#mailServerFooter .btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Importing...'; }
     let imported = 0, errors = 0;
     for (const cb of checkboxes) {
       try {
@@ -985,6 +986,7 @@
         else errors++;
       } catch { errors++; }
     }
+    if (btn) { btn.disabled = false; btn.textContent = 'Import Selected'; }
     showToast(`Imported ${imported} account${imported !== 1 ? 's' : ''}${errors ? ` (${errors} failed)` : ''}`, imported ? 'success' : 'error');
     closeModal('mailServerModal');
     await loadData();

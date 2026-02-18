@@ -15,6 +15,7 @@ const Database = require('better-sqlite3');
 const PORT = process.env.PORT || 3456;
 const BASE_PATH = process.env.BASE_PATH || '/email-signature';
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'signatures.db');
+const CACHE_BUST = Date.now(); // busts browser cache on restart
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'esm-secret-' + Math.random().toString(36).slice(2);
 const PUBLIC_URL = process.env.PUBLIC_URL || ''; // e.g. https://yourdomain.com
@@ -126,7 +127,7 @@ app.use(session({
 }));
 
 // Serve static files
-app.use(BASE_PATH + '/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+app.use(BASE_PATH + '/static', express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
 app.use(BASE_PATH + '/uploads', express.static(UPLOADS_DIR, { maxAge: '7d' }));
 
 // Logo upload config
@@ -596,7 +597,7 @@ function renderLoginPage(settings, error) {
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sign In - ${escHtml(companyName)}</title>
-<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css">
+<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css?v=${CACHE_BUST}">
 </head><body>
 <div class="login-page">
   <div class="login-card">
@@ -624,7 +625,7 @@ function renderSetupPage() {
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Setup - Email Signature Manager</title>
-<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css">
+<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css?v=${CACHE_BUST}">
 </head><body>
 <div class="setup-page">
   <div class="setup-card">
@@ -696,7 +697,7 @@ function renderSetupPage() {
 </div>
 <div class="toast-container" id="toastContainer"></div>
 <script>window.__BASE_PATH = '${BASE_PATH}';</script>
-<script src="${BASE_PATH}/static/js/app.js?v=1771413040"></script>
+<script src="${BASE_PATH}/static/js/app.js?v=${CACHE_BUST}"></script>
 </body></html>`;
 }
 
@@ -707,7 +708,7 @@ function renderDashboardPage(settings) {
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${escHtml(companyName)} - Email Signature Manager</title>
-<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css">
+<link rel="stylesheet" href="${BASE_PATH}/static/css/app.css?v=${CACHE_BUST}">
 </head><body>
 
 <!-- Mobile Toggle -->
@@ -1177,7 +1178,7 @@ function renderDashboardPage(settings) {
 <div class="toast-container" id="toastContainer"></div>
 
 <script>window.__BASE_PATH = '${BASE_PATH}';</script>
-<script src="${BASE_PATH}/static/js/app.js?v=1771413040"></script>
+<script src="${BASE_PATH}/static/js/app.js?v=${CACHE_BUST}"></script>
 </body></html>`;
 }
 
