@@ -696,7 +696,7 @@ function renderSetupPage() {
 </div>
 <div class="toast-container" id="toastContainer"></div>
 <script>window.__BASE_PATH = '${BASE_PATH}';</script>
-<script src="${BASE_PATH}/static/js/app.js"></script>
+<script src="${BASE_PATH}/static/js/app.js?v=1771413040"></script>
 </body></html>`;
 }
 
@@ -1027,6 +1027,7 @@ function renderDashboardPage(settings) {
           <p>Change the admin dashboard password</p>
           <div class="card">
             <form class="settings-grid" id="passwordForm" onsubmit="ESM.changePassword(event)">
+              <input type="hidden" name="username" autocomplete="username" value="admin">
               <div class="form-group">
                 <label>Current Password</label>
                 <input class="form-control" type="password" id="currentPassword" required autocomplete="current-password">
@@ -1176,7 +1177,7 @@ function renderDashboardPage(settings) {
 <div class="toast-container" id="toastContainer"></div>
 
 <script>window.__BASE_PATH = '${BASE_PATH}';</script>
-<script src="${BASE_PATH}/static/js/app.js"></script>
+<script src="${BASE_PATH}/static/js/app.js?v=1771413040"></script>
 </body></html>`;
 }
 
