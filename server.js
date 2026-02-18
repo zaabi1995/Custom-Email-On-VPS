@@ -1029,16 +1029,16 @@ function renderDashboardPage(settings) {
             <form class="settings-grid" id="passwordForm" onsubmit="ESM.changePassword(event)">
               <div class="form-group">
                 <label>Current Password</label>
-                <input class="form-control" type="password" id="currentPassword" required>
+                <input class="form-control" type="password" id="currentPassword" required autocomplete="current-password">
               </div>
               <div class="form-row">
                 <div class="form-group">
                   <label>New Password</label>
-                  <input class="form-control" type="password" id="newPassword" required minlength="6">
+                  <input class="form-control" type="password" id="newPassword" required minlength="6" autocomplete="new-password">
                 </div>
                 <div class="form-group">
                   <label>Confirm Password</label>
-                  <input class="form-control" type="password" id="confirmPassword" required minlength="6">
+                  <input class="form-control" type="password" id="confirmPassword" required minlength="6" autocomplete="new-password">
                 </div>
               </div>
               <button type="submit" class="btn btn-primary">Change Password</button>
