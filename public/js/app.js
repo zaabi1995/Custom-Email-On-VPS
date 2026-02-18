@@ -668,7 +668,15 @@
       .replace(/\{\{address\}\}/g, settings.address || '123 Business Street')
       .replace(/\{\{website\}\}/g, settings.website || 'example.com')
       .replace(/\{\{logo_url\}\}/g, settings._logo_url || '')
-      .replace(/\{\{default_phone\}\}/g, settings.default_phone || '');
+      .replace(/\{\{default_phone\}\}/g, settings.default_phone || '')
+      .replace(/\{\{en_font\}\}/g, settings.en_font || 'Arial, sans-serif')
+      .replace(/\{\{ar_font\}\}/g, settings.ar_font || "'Sakkal Majalla', Tahoma, sans-serif")
+      .replace(/\{\{en_name_size\}\}/g, settings.en_name_size || '15')
+      .replace(/\{\{ar_name_size\}\}/g, settings.ar_name_size || '17')
+      .replace(/\{\{en_title_size\}\}/g, settings.en_title_size || '12')
+      .replace(/\{\{ar_title_size\}\}/g, settings.ar_title_size || '14')
+      .replace(/\{\{en_company_size\}\}/g, settings.en_company_size || '12')
+      .replace(/\{\{ar_company_size\}\}/g, settings.ar_company_size || '14');
     // Handle conditional phone
     preview = preview.replace(/\{\{#phone\}\}(.*?)\{\{\/phone\}\}/gs, '$1');
     container.innerHTML = '<div class="preview-container">' + preview + '</div>';
@@ -695,7 +703,19 @@
       setVal('setting_' + f, settings[f] || '');
     });
     setVal('setting_logo_type', settings.logo_type || 'gif');
+    // Font settings
+    setVal('setting_en_font', settings.en_font || 'Arial, sans-serif');
+    setVal('setting_ar_font', settings.ar_font || "'Sakkal Majalla', 'Traditional Arabic', 'Simplified Arabic', 'Geeza Pro', Tahoma, Arial, sans-serif");
+    const fontSizes = { en_name_size: '15', ar_name_size: '17', en_title_size: '12', ar_title_size: '14', en_company_size: '12', ar_company_size: '14' };
+    Object.entries(fontSizes).forEach(([key, def]) => {
+      const val = settings[key] || def;
+      const el = document.getElementById('setting_' + key);
+      if (el) el.value = val;
+      const label = document.getElementById(key + '_val');
+      if (label) label.textContent = val + 'px';
+    });
     renderLogoPreview();
+    previewFontSettings();
   }
 
   function renderLogoPreview() {
@@ -899,6 +919,53 @@
     }
   }
 
+  // ============ FONT SETTINGS ============
+  function previewFontSettings() {
+    const box = document.getElementById('fontPreviewBox');
+    if (!box) return;
+    const enFont = getVal('setting_en_font') || 'Arial, sans-serif';
+    const arFont = getVal('setting_ar_font') || 'Tahoma, sans-serif';
+    const enNameSize = getVal('setting_en_name_size') || '15';
+    const arNameSize = getVal('setting_ar_name_size') || '17';
+    const enTitleSize = getVal('setting_en_title_size') || '12';
+    const arTitleSize = getVal('setting_ar_title_size') || '14';
+    const enCompanySize = getVal('setting_en_company_size') || '12';
+    const arCompanySize = getVal('setting_ar_company_size') || '14';
+    const logoUrl = settings._logo_url || '';
+
+    box.innerHTML = '<div style="font-family: ' + enFont + '; font-size: 13px; color: #333;">' +
+      '<hr style="border: none; border-top: 2px solid #2d6a4f; margin: 12px 0; width: 200px;">' +
+      '<table cellpadding="0" cellspacing="0" border="0"><tr>' +
+      '<td style="padding-right: 15px; vertical-align: middle; border-right: 2px solid #2d6a4f;">' +
+      (logoUrl ? '<img src="' + logoUrl + '" style="width: 70px; height: auto;">' : '') +
+      '</td><td style="padding-left: 15px; vertical-align: top;">' +
+      '<p style="margin:0 0 4px 0;font-weight:bold;font-size:' + enNameSize + 'px;color:#034D57;">Ali Adnan Haider Darwish <span style="font-weight:normal;color:#bbb;margin:0 8px;">|</span><span dir="rtl" style="font-family:' + arFont + ';font-size:' + arNameSize + 'px;color:#034D57;">علي عدنان حيدر درويش</span></p>' +
+      '<p style="margin:0 0 4px 0;font-size:' + enTitleSize + 'px;color:#555;">Co-Founder <span style="color:#bbb;margin:0 8px;">|</span><span dir="rtl" style="font-family:' + arFont + ';font-size:' + arTitleSize + 'px;color:#555;">شريك مؤسس</span></p>' +
+      '<p style="margin:0 0 4px 0;font-size:' + enCompanySize + 'px;font-weight:bold;color:#2d6a4f;">' + esc(settings.company_name || 'Alali Investment SPC') + ' <span style="font-weight:normal;color:#bbb;margin:0 8px;">|</span><span dir="rtl" style="font-family:' + arFont + ';font-size:' + arCompanySize + 'px;font-weight:bold;color:#2d6a4f;">' + esc(settings.company_name_ar || 'العلالي للإستثمار') + '</span></p>' +
+      '<p style="margin:0 0 3px 0;font-size:12px;"><a href="#" style="color:#034D57;text-decoration:none;">ali.alzaabi@alali.om</a> | +968 98899100</p>' +
+      '<p style="margin:0 0 3px 0;font-size:12px;"><a href="#" style="color:#2d6a4f;text-decoration:none;">' + esc(settings.website || 'www.alali.om') + '</a></p>' +
+      '<p style="margin:0;font-size:12px;color:#666;">' + esc(settings.address || 'P.O. Box 2, Muscat') + '</p>' +
+      '</td></tr></table></div>';
+  }
+
+  async function saveFontSettings() {
+    const data = {};
+    ['en_font', 'ar_font', 'en_name_size', 'ar_name_size', 'en_title_size', 'ar_title_size', 'en_company_size', 'ar_company_size'].forEach(f => {
+      data[f] = getVal('setting_' + f);
+    });
+    try {
+      const result = await api('POST', '/api/settings', data);
+      if (result.success) {
+        settings = result.settings;
+        showToast('Font settings saved!', 'success');
+      } else {
+        showToast(result.error || 'Error saving', 'error');
+      }
+    } catch (err) {
+      showToast('Error saving font settings', 'error');
+    }
+  }
+
   // ============ MAIL SERVER IMPORT ============
   async function openMailServerImport() {
     // Create modal dynamically if not exists
@@ -1026,6 +1093,8 @@
     setupNext,
     setupPrev,
     completeSetup,
+    previewFontSettings,
+    saveFontSettings,
     openMailServerImport,
     toggleSelectAllMailboxes,
     importSelectedMailboxes,

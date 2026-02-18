@@ -200,7 +200,15 @@ function generateSignatureHtml(employee, settings) {
     .replace(/\{\{address\}\}/g, settings.address || '')
     .replace(/\{\{website\}\}/g, settings.website || '')
     .replace(/\{\{logo_url\}\}/g, logoUrl)
-    .replace(/\{\{default_phone\}\}/g, settings.default_phone || '');
+    .replace(/\{\{default_phone\}\}/g, settings.default_phone || '')
+    .replace(/\{\{en_font\}\}/g, settings.en_font || 'Arial, sans-serif')
+    .replace(/\{\{ar_font\}\}/g, settings.ar_font || "'Sakkal Majalla', 'Traditional Arabic', Tahoma, Arial, sans-serif")
+    .replace(/\{\{en_name_size\}\}/g, settings.en_name_size || '15')
+    .replace(/\{\{ar_name_size\}\}/g, settings.ar_name_size || '17')
+    .replace(/\{\{en_title_size\}\}/g, settings.en_title_size || '12')
+    .replace(/\{\{ar_title_size\}\}/g, settings.ar_title_size || '14')
+    .replace(/\{\{en_company_size\}\}/g, settings.en_company_size || '12')
+    .replace(/\{\{ar_company_size\}\}/g, settings.ar_company_size || '14');
 
   // Handle conditional phone: {{#phone}} ... {{/phone}}
   const phone = employee.phone || settings.default_phone || '';
@@ -212,7 +220,8 @@ function generateSignatureHtml(employee, settings) {
 
   // Clean up empty Arabic/bilingual separators: remove " — " + empty spans
   // If name_ar, title_ar are empty, strip the dash and empty span
-  html = html.replace(/<span[^>]*>\s*&mdash;\s*<\/span>\s*<span[^>]*dir="rtl"[^>]*>\s*<\/span>/g, '');
+  // Clean up empty separators: "|" span + empty rtl span when no Arabic text
+  html = html.replace(/<span[^>]*>\s*(?:&mdash;|\|)\s*<\/span>\s*<span[^>]*dir="rtl"[^>]*>\s*<\/span>/g, '');
 
   return html;
 }
@@ -428,7 +437,8 @@ app.get(BASE_PATH + '/api/settings', requireAuthAPI, (req, res) => {
 
 app.post(BASE_PATH + '/api/settings', requireAuthAPI, (req, res) => {
   const allowed = ['company_name', 'company_name_ar', 'address', 'website', 'default_phone', 'logo_type',
-    'primary_color', 'accent_color'];
+    'primary_color', 'accent_color',
+    'en_font', 'ar_font', 'en_name_size', 'ar_name_size', 'en_title_size', 'ar_title_size', 'en_company_size', 'ar_company_size'];
   for (const key of allowed) {
     if (req.body[key] !== undefined) {
       setSetting.run(key, req.body[key]);
@@ -980,6 +990,99 @@ function renderDashboardPage(settings) {
                 <button type="submit" class="btn btn-primary">Save Settings</button>
               </div>
             </form>
+          </div>
+        </div>
+
+        <!-- Font & Size Settings -->
+        <div class="settings-section">
+          <h3>Font & Size Settings</h3>
+          <p>Customize fonts and text sizes for email signatures — changes apply to all employees</p>
+          <div class="card">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+              <!-- Left: Controls -->
+              <div>
+                <div class="form-group">
+                  <label>English Font</label>
+                  <select class="form-control" id="setting_en_font" onchange="ESM.previewFontSettings()">
+                    <option value="Arial, sans-serif">Arial</option>
+                    <option value="'Segoe UI', Arial, sans-serif">Segoe UI</option>
+                    <option value="Verdana, sans-serif">Verdana</option>
+                    <option value="'Trebuchet MS', sans-serif">Trebuchet MS</option>
+                    <option value="Georgia, serif">Georgia</option>
+                    <option value="'Times New Roman', serif">Times New Roman</option>
+                    <option value="Tahoma, sans-serif">Tahoma</option>
+                    <option value="Calibri, Arial, sans-serif">Calibri</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label>Arabic Font</label>
+                  <select class="form-control" id="setting_ar_font" onchange="ESM.previewFontSettings()">
+                    <option value="'Sakkal Majalla', 'Traditional Arabic', 'Simplified Arabic', 'Geeza Pro', Tahoma, Arial, sans-serif">Sakkal Majalla (Modern)</option>
+                    <option value="'Traditional Arabic', 'Sakkal Majalla', 'Geeza Pro', Tahoma, sans-serif">Traditional Arabic (Classic)</option>
+                    <option value="'Simplified Arabic', 'Traditional Arabic', 'Geeza Pro', Tahoma, sans-serif">Simplified Arabic (Clean)</option>
+                    <option value="Tahoma, 'Segoe UI', 'Geeza Pro', sans-serif">Tahoma (Universal)</option>
+                    <option value="Arial, 'Geeza Pro', sans-serif">Arial (Default)</option>
+                    <option value="'Geeza Pro', 'Al Bayan', Tahoma, sans-serif">Geeza Pro (macOS/iOS)</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>English Name Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="12" max="22" id="setting_en_name_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('en_name_size_val').textContent=this.value+'px'">
+                      <span id="en_name_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">15px</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Arabic Name Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="12" max="24" id="setting_ar_name_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('ar_name_size_val').textContent=this.value+'px'">
+                      <span id="ar_name_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">17px</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>English Title Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="10" max="18" id="setting_en_title_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('en_title_size_val').textContent=this.value+'px'">
+                      <span id="en_title_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">12px</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Arabic Title Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="10" max="20" id="setting_ar_title_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('ar_title_size_val').textContent=this.value+'px'">
+                      <span id="ar_title_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">14px</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>English Company Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="10" max="18" id="setting_en_company_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('en_company_size_val').textContent=this.value+'px'">
+                      <span id="en_company_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">12px</span>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Arabic Company Size</label>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <input type="range" min="10" max="20" id="setting_ar_company_size" style="flex:1;" oninput="ESM.previewFontSettings();document.getElementById('ar_company_size_val').textContent=this.value+'px'">
+                      <span id="ar_company_size_val" style="font-size:12px;color:var(--text-muted);min-width:32px;">14px</span>
+                    </div>
+                  </div>
+                </div>
+                <button class="btn btn-primary" onclick="ESM.saveFontSettings()">Save Font Settings</button>
+              </div>
+              <!-- Right: Live Preview -->
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">Live Preview</label>
+                <div id="fontPreviewBox" style="border:1px solid var(--border);border-radius:var(--radius);padding:24px;background:#fff;min-height:200px;">
+                  <p class="text-muted text-sm">Loading preview...</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
