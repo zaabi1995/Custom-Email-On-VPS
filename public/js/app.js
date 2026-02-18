@@ -133,6 +133,10 @@
     if (actionsEl) {
       if (section === 'employees') {
         actionsEl.innerHTML = `
+          <button class="btn btn-accent btn-sm" onclick="ESM.openMailServerImport()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Import from Mail Server
+          </button>
           <button class="btn btn-ghost btn-sm" onclick="ESM.openImportModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
             Import CSV
@@ -239,8 +243,8 @@
             <div style="display:flex;align-items:center;">
               <div class="emp-avatar">${initials}</div>
               <div class="emp-info">
-                <div class="emp-name">${esc(emp.name)}</div>
-                <div class="emp-title-text">${esc(emp.title || 'No title')}</div>
+                <div class="emp-name">${esc(emp.name)}${emp.name_ar ? ' <span style="font-weight:400;color:var(--text-muted);font-size:13px;" dir="rtl">' + esc(emp.name_ar) + '</span>' : ''}</div>
+                <div class="emp-title-text">${esc(emp.title || 'No title')}${emp.title_ar ? ' — <span dir="rtl">' + esc(emp.title_ar) + '</span>' : ''}</div>
               </div>
             </div>
             <span class="badge ${emp.enabled ? 'badge-active' : 'badge-inactive'}">${emp.enabled ? 'Active' : 'Disabled'}</span>
@@ -283,7 +287,9 @@
     document.getElementById('modalTitle').textContent = 'Add Employee';
     document.getElementById('empId').value = '';
     document.getElementById('empName').value = '';
+    document.getElementById('empNameAr').value = '';
     document.getElementById('empTitle').value = '';
+    document.getElementById('empTitleAr').value = '';
     document.getElementById('empEmail').value = '';
     document.getElementById('empPhone').value = '';
     document.getElementById('empEnabled').checked = true;
@@ -300,7 +306,9 @@
     document.getElementById('modalTitle').textContent = 'Edit Employee';
     document.getElementById('empId').value = emp.id;
     document.getElementById('empName').value = emp.name;
+    document.getElementById('empNameAr').value = emp.name_ar || '';
     document.getElementById('empTitle').value = emp.title || '';
+    document.getElementById('empTitleAr').value = emp.title_ar || '';
     document.getElementById('empEmail').value = emp.email;
     document.getElementById('empPhone').value = emp.phone || '';
     document.getElementById('empEnabled').checked = !!emp.enabled;
@@ -312,7 +320,9 @@
     const id = document.getElementById('empId').value;
     const data = {
       name: document.getElementById('empName').value.trim(),
+      name_ar: document.getElementById('empNameAr').value.trim(),
       title: document.getElementById('empTitle').value.trim(),
+      title_ar: document.getElementById('empTitleAr').value.trim(),
       email: document.getElementById('empEmail').value.trim(),
       phone: document.getElementById('empPhone').value.trim(),
       enabled: document.getElementById('empEnabled').checked,
@@ -532,32 +542,89 @@
 
   // ============ TEMPLATES ============
   function renderTemplates() {
-    const editor = document.getElementById('templateEditor');
-    if (!editor) return;
+    const listEl = document.getElementById('templateList');
+    if (!listEl) return;
 
-    // Load the default/current template
-    const defaultTpl = templates.find(t => t.is_default) || templates[0];
-    if (defaultTpl) {
-      editor.value = defaultTpl.html_template;
-      document.getElementById('templateId').value = defaultTpl.id;
-      document.getElementById('templateName').value = defaultTpl.name;
+    if (templates.length === 0) {
+      listEl.innerHTML = '<p class="text-muted text-sm text-center" style="padding:20px;">No templates yet</p>';
+      return;
     }
+
+    listEl.innerHTML = templates.map(tpl => `
+      <div class="activity-item" style="cursor:pointer;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;" onclick="ESM.editTemplate(${tpl.id})">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div>
+            <div style="font-weight:600;font-size:14px;">${esc(tpl.name)}</div>
+            <div style="font-size:12px;color:var(--text-muted);">Last updated: ${formatTimeAgo(tpl.updated_at)}</div>
+          </div>
+          ${tpl.is_default ? '<span class="badge badge-active">Default</span>' : ''}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();ESM.editTemplate(${tpl.id})">Edit</button>
+          ${!tpl.is_default ? `<button class="btn btn-sm btn-ghost" style="color:var(--danger);" onclick="event.stopPropagation();ESM.deleteTemplate(${tpl.id},'${esc(tpl.name)}')">Delete</button>` : ''}
+        </div>
+      </div>`).join('');
+  }
+
+  function editTemplate(id) {
+    const tpl = templates.find(t => t.id === id);
+    if (!tpl) return;
+    document.getElementById('templateId').value = tpl.id;
+    document.getElementById('templateNameInput').value = tpl.name;
+    document.getElementById('templateIsDefault').checked = !!tpl.is_default;
+    document.getElementById('templateEditor').value = tpl.html_template;
+    document.getElementById('templateEditorTitle').textContent = 'Edit: ' + tpl.name;
+    document.getElementById('templateEditorCard').style.display = '';
+    livePreviewTemplate();
+  }
+
+  function newTemplate() {
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateNameInput').value = '';
+    document.getElementById('templateIsDefault').checked = false;
+    document.getElementById('templateEditor').value = '';
+    document.getElementById('templateEditorTitle').textContent = 'New Template';
+    document.getElementById('templateEditorCard').style.display = '';
+    document.getElementById('templatePreviewContent').innerHTML = '<p class="text-muted text-sm text-center" style="padding:40px;">Start typing to see live preview</p>';
+  }
+
+  function cancelEditTemplate() {
+    document.getElementById('templateEditorCard').style.display = 'none';
   }
 
   async function saveTemplate() {
     const id = document.getElementById('templateId').value;
-    const name = document.getElementById('templateName').value.trim() || 'Default';
+    const name = document.getElementById('templateNameInput').value.trim() || 'Untitled';
     const html = document.getElementById('templateEditor').value;
+    const is_default = document.getElementById('templateIsDefault').checked;
     try {
-      const result = await api('POST', '/api/templates', { id: id || undefined, name, html_template: html, is_default: true });
+      const result = await api('POST', '/api/templates', { id: id || undefined, name, html_template: html, is_default });
       if (result.success) {
         showToast('Template saved!', 'success');
+        if (result.templates) templates = result.templates;
+        document.getElementById('templateEditorCard').style.display = 'none';
         await loadData();
       } else {
         showToast(result.error || 'Error saving template', 'error');
       }
     } catch (err) {
       showToast('Error saving template', 'error');
+    }
+  }
+
+  async function deleteTemplate(id, name) {
+    if (!confirm('Delete template "' + name + '"?')) return;
+    try {
+      const result = await api('DELETE', '/api/templates/' + id);
+      if (result.success) {
+        showToast('Template deleted', 'success');
+        document.getElementById('templateEditorCard').style.display = 'none';
+        await loadData();
+      } else {
+        showToast(result.error || 'Cannot delete', 'error');
+      }
+    } catch (err) {
+      showToast('Error deleting template', 'error');
     }
   }
 
@@ -574,15 +641,19 @@
     }
   }
 
-  function previewTemplate() {
+  function livePreviewTemplate() {
     const html = document.getElementById('templateEditor').value;
     const container = document.getElementById('templatePreviewContent');
-    if (!container) return;
+    if (!container || !html.trim()) {
+      if (container) container.innerHTML = '<p class="text-muted text-sm text-center" style="padding:40px;">Start typing to see live preview</p>';
+      return;
+    }
 
-    // Replace variables with sample data
     let preview = html
       .replace(/\{\{name\}\}/g, 'Jane Doe')
+      .replace(/\{\{name_ar\}\}/g, 'جين دو')
       .replace(/\{\{title\}\}/g, 'Marketing Manager')
+      .replace(/\{\{title_ar\}\}/g, 'مدير التسويق')
       .replace(/\{\{email\}\}/g, 'jane@example.com')
       .replace(/\{\{phone\}\}/g, '+1 555-0123')
       .replace(/\{\{company_name\}\}/g, settings.company_name || 'Your Company')
@@ -591,8 +662,13 @@
       .replace(/\{\{website\}\}/g, settings.website || 'example.com')
       .replace(/\{\{logo_url\}\}/g, settings._logo_url || '')
       .replace(/\{\{default_phone\}\}/g, settings.default_phone || '');
+    // Handle conditional phone
+    preview = preview.replace(/\{\{#phone\}\}(.*?)\{\{\/phone\}\}/gs, '$1');
     container.innerHTML = '<div class="preview-container">' + preview + '</div>';
   }
+
+  // Keep old name for compatibility
+  function previewTemplate() { livePreviewTemplate(); }
 
   function insertTemplateVar(v) {
     const editor = document.getElementById('templateEditor');
@@ -603,6 +679,7 @@
     editor.value = text.substring(0, start) + '{{' + v + '}}' + text.substring(end);
     editor.focus();
     editor.selectionStart = editor.selectionEnd = start + v.length + 4;
+    livePreviewTemplate();
   }
 
   // ============ SETTINGS ============
@@ -824,6 +901,95 @@
     }
   }
 
+  // ============ MAIL SERVER IMPORT ============
+  async function openMailServerImport() {
+    // Create modal dynamically if not exists
+    let modal = document.getElementById('mailServerModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.id = 'mailServerModal';
+      modal.innerHTML = `
+        <div class="modal modal-md">
+          <div class="modal-header">
+            <h2>Import from Mail Server</h2>
+            <button class="modal-close" onclick="ESM.closeModal('mailServerModal')">&times;</button>
+          </div>
+          <div class="modal-body" id="mailServerBody">
+            <p class="text-muted text-sm text-center" style="padding:40px;">Loading mailboxes...</p>
+          </div>
+          <div class="modal-footer" id="mailServerFooter" style="display:none;">
+            <button class="btn btn-ghost" onclick="ESM.closeModal('mailServerModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="ESM.importSelectedMailboxes()">Import Selected</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+    openModal('mailServerModal');
+
+    const body = document.getElementById('mailServerBody');
+    const footer = document.getElementById('mailServerFooter');
+    body.innerHTML = '<p class="text-muted text-sm text-center" style="padding:40px;">Loading mailboxes...</p>';
+    footer.style.display = 'none';
+
+    try {
+      const result = await api('GET', '/api/mailboxes');
+      const mailboxes = result.mailboxes || [];
+      if (mailboxes.length === 0) {
+        body.innerHTML = '<div class="empty-state"><h3>All synced!</h3><p>All mail server accounts are already imported.</p></div>';
+        return;
+      }
+      let html = '<p class="text-sm text-muted" style="margin-bottom:12px;">Select accounts to import (' + mailboxes.length + ' available)</p>';
+      html += '<div style="margin-bottom:12px;padding:8px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;">';
+      html += '<input type="checkbox" id="msSelectAll" onchange="ESM.toggleSelectAllMailboxes(this.checked)" style="width:18px;height:18px;">';
+      html += '<label for="msSelectAll" style="font-weight:600;font-size:13px;cursor:pointer;">Select All</label></div>';
+      html += '<div style="max-height:400px;overflow-y:auto;">';
+      mailboxes.forEach((m, i) => {
+        html += `<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);">
+          <input type="checkbox" class="ms-checkbox" data-email="${esc(m.email)}" data-name="${esc(m.full_name)}" style="width:18px;height:18px;">
+          <div>
+            <div style="font-weight:500;font-size:14px;">${esc(m.full_name)}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${esc(m.email)}</div>
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+      body.innerHTML = html;
+      footer.style.display = '';
+    } catch (err) {
+      body.innerHTML = '<p class="text-muted text-center" style="padding:20px;">Failed to load mailboxes</p>';
+    }
+  }
+
+  function toggleSelectAllMailboxes(checked) {
+    document.querySelectorAll('.ms-checkbox').forEach(cb => cb.checked = checked);
+  }
+
+  async function importSelectedMailboxes() {
+    const checkboxes = document.querySelectorAll('.ms-checkbox:checked');
+    if (checkboxes.length === 0) {
+      showToast('No accounts selected', 'error');
+      return;
+    }
+    let imported = 0, errors = 0;
+    for (const cb of checkboxes) {
+      try {
+        const result = await api('POST', '/api/employees', {
+          name: cb.dataset.name,
+          email: cb.dataset.email,
+          title: '',
+          phone: '',
+          enabled: true,
+        });
+        if (result.success) imported++;
+        else errors++;
+      } catch { errors++; }
+    }
+    showToast(`Imported ${imported} account${imported !== 1 ? 's' : ''}${errors ? ` (${errors} failed)` : ''}`, imported ? 'success' : 'error');
+    closeModal('mailServerModal');
+    await loadData();
+  }
+
   // ============ EXPOSE PUBLIC API ============
   window.ESM = {
     openAddModal,
@@ -842,7 +1008,12 @@
     saveTemplate,
     resetTemplate,
     previewTemplate,
+    livePreviewTemplate,
     insertTemplateVar,
+    editTemplate,
+    newTemplate,
+    cancelEditTemplate,
+    deleteTemplate,
     saveSettings,
     uploadLogo,
     changePassword,
@@ -853,6 +1024,9 @@
     setupNext,
     setupPrev,
     completeSetup,
+    openMailServerImport,
+    toggleSelectAllMailboxes,
+    importSelectedMailboxes,
   };
 
 })();

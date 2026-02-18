@@ -189,7 +189,9 @@ function generateSignatureHtml(employee, settings) {
 
   let html = template
     .replace(/\{\{name\}\}/g, employee.name || '')
+    .replace(/\{\{name_ar\}\}/g, employee.name_ar || '')
     .replace(/\{\{title\}\}/g, employee.title || '')
+    .replace(/\{\{title_ar\}\}/g, employee.title_ar || '')
     .replace(/\{\{email\}\}/g, employee.email || '')
     .replace(/\{\{phone\}\}/g, employee.phone || settings.default_phone || '')
     .replace(/\{\{company_name\}\}/g, settings.company_name || '')
@@ -281,10 +283,10 @@ app.get(BASE_PATH + '/api/employees', requireAuthAPI, (req, res) => {
 });
 
 app.post(BASE_PATH + '/api/employees', requireAuthAPI, (req, res) => {
-  const { name, title, email, phone, enabled } = req.body;
+  const { name, title, email, phone, enabled, name_ar, title_ar } = req.body;
   try {
-    const stmt = db.prepare('INSERT INTO employees (name, title, email, phone, enabled) VALUES (?, ?, ?, ?, ?)');
-    const result = stmt.run(name, title || '', email, phone || '', enabled !== undefined ? (enabled ? 1 : 0) : 1);
+    const stmt = db.prepare('INSERT INTO employees (name, title, email, phone, enabled, name_ar, title_ar) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const result = stmt.run(name, title || '', email, phone || '', enabled !== undefined ? (enabled ? 1 : 0) : 1, name_ar || '', title_ar || '');
     const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(result.lastInsertRowid);
     logActivity.run('create', 'employee', employee.id, employee.name, `Added employee: ${name} (${email})`);
     res.json({ success: true, employee });
@@ -294,10 +296,10 @@ app.post(BASE_PATH + '/api/employees', requireAuthAPI, (req, res) => {
 });
 
 app.put(BASE_PATH + '/api/employees/:id', requireAuthAPI, (req, res) => {
-  const { name, title, email, phone, enabled } = req.body;
+  const { name, title, email, phone, enabled, name_ar, title_ar } = req.body;
   try {
-    db.prepare(`UPDATE employees SET name=?, title=?, email=?, phone=?, enabled=?, updated_at=datetime('now') WHERE id=?`)
-      .run(name, title || '', email, phone || '', enabled ? 1 : 0, req.params.id);
+    db.prepare(`UPDATE employees SET name=?, title=?, email=?, phone=?, enabled=?, name_ar=?, title_ar=?, updated_at=datetime('now') WHERE id=?`)
+      .run(name, title || '', email, phone || '', enabled ? 1 : 0, name_ar || '', title_ar || '', req.params.id);
     const employee = db.prepare('SELECT * FROM employees WHERE id = ?').get(req.params.id);
     logActivity.run('update', 'employee', employee.id, employee.name, `Updated employee: ${name}`);
     res.json({ success: true, employee });
@@ -474,18 +476,29 @@ app.post(BASE_PATH + '/api/templates', requireAuthAPI, (req, res) => {
   const { id, name, html_template, is_default } = req.body;
   try {
     if (id) {
+      if (is_default) db.prepare('UPDATE signature_templates SET is_default = 0').run();
       db.prepare("UPDATE signature_templates SET name=?, html_template=?, is_default=?, updated_at=datetime('now') WHERE id=?")
         .run(name || 'Default', html_template, is_default ? 1 : 0, id);
     } else {
       if (is_default) db.prepare('UPDATE signature_templates SET is_default = 0').run();
       db.prepare('INSERT INTO signature_templates (name, html_template, is_default) VALUES (?, ?, ?)')
-        .run(name || 'Default', html_template, is_default ? 1 : 0);
+        .run(name || 'Untitled', html_template, is_default ? 1 : 0);
     }
-    logActivity.run('update', 'template', null, name, `Updated signature template: ${name || 'Default'}`);
-    res.json({ success: true });
+    const templates = db.prepare('SELECT * FROM signature_templates ORDER BY is_default DESC, id ASC').all();
+    logActivity.run('update', 'template', null, name, `${id ? 'Updated' : 'Created'} signature template: ${name || 'Default'}`);
+    res.json({ success: true, templates });
   } catch (e) {
     res.status(400).json({ success: false, error: e.message });
   }
+});
+
+app.delete(BASE_PATH + '/api/templates/:id', requireAuthAPI, (req, res) => {
+  const tpl = db.prepare('SELECT * FROM signature_templates WHERE id = ?').get(req.params.id);
+  if (!tpl) return res.status(404).json({ success: false, error: 'Template not found' });
+  if (tpl.is_default) return res.status(400).json({ success: false, error: 'Cannot delete the active default template' });
+  db.prepare('DELETE FROM signature_templates WHERE id = ?').run(req.params.id);
+  logActivity.run('delete', 'template', tpl.id, tpl.name, `Deleted template: ${tpl.name}`);
+  res.json({ success: true });
 });
 
 app.post(BASE_PATH + '/api/templates/reset', requireAuthAPI, (req, res) => {
@@ -526,6 +539,27 @@ ${sigHtml}
   } catch (e) {
     console.error('Test email error:', e.message);
     res.status(500).json({ success: false, error: 'Failed to send test email. Make sure SMTP is configured.' });
+  }
+});
+
+// ============ API: MAILBOXES FROM MAIL SERVER ============
+app.get(BASE_PATH + '/api/mailboxes', requireAuthAPI, (req, res) => {
+  try {
+    const postfixDb = new Database('/www/vmail/postfixadmin.db', { readonly: true });
+    const mailboxes = postfixDb.prepare(
+      "SELECT username AS email, full_name FROM mailbox WHERE domain='alali.om' AND active=1 ORDER BY full_name"
+    ).all();
+    postfixDb.close();
+
+    // Exclude emails already in employees table (case-insensitive)
+    const existing = new Set(
+      db.prepare('SELECT LOWER(email) AS email FROM employees').all().map(r => r.email)
+    );
+    const available = mailboxes.filter(m => !existing.has(m.email.toLowerCase()));
+    res.json({ mailboxes: available });
+  } catch (e) {
+    console.error('Mailbox fetch error:', e.message);
+    res.status(500).json({ error: 'Failed to read mail server database' });
   }
 });
 
@@ -813,46 +847,78 @@ function renderDashboardPage(settings) {
 
       <!-- ========== TEMPLATES SECTION ========== -->
       <div class="section" id="section-templates">
-        <div class="card">
+        <!-- Template List -->
+        <div class="card" style="margin-bottom:20px;">
           <div class="card-header">
             <div>
-              <h3>Signature Template Editor</h3>
-              <p>Customize the HTML template used for email signatures</p>
+              <h3>Signature Templates</h3>
+              <p>Manage multiple templates — the default is used for all signatures</p>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="ESM.newTemplate()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              New Template
+            </button>
+          </div>
+          <div id="templateList"></div>
+        </div>
+
+        <!-- Template Editor -->
+        <div class="card" id="templateEditorCard" style="display:none;">
+          <div class="card-header">
+            <div>
+              <h3 id="templateEditorTitle">Edit Template</h3>
+              <p>Editing signature template</p>
             </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn btn-sm btn-ghost" onclick="ESM.resetTemplate()">Reset to Default</button>
-              <button class="btn btn-sm btn-accent" onclick="ESM.previewTemplate()">Preview</button>
+              <button class="btn btn-sm btn-ghost" onclick="ESM.cancelEditTemplate()">Cancel</button>
               <button class="btn btn-sm btn-primary" onclick="ESM.saveTemplate()">Save Template</button>
             </div>
           </div>
 
-          <div class="mb-4">
-            <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">Available Variables (click to insert)</label>
-            <div class="template-vars">
-              <span class="template-var" onclick="ESM.insertTemplateVar('name')">{{name}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('title')">{{title}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('email')">{{email}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('phone')">{{phone}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('company_name')">{{company_name}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('company_name_ar')">{{company_name_ar}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('address')">{{address}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('website')">{{website}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('logo_url')">{{logo_url}}</span>
-              <span class="template-var" onclick="ESM.insertTemplateVar('default_phone')">{{default_phone}}</span>
+          <div style="padding:0 24px;">
+            <div class="form-row" style="margin-bottom:12px;">
+              <div class="form-group">
+                <label>Template Name</label>
+                <input class="form-control" type="text" id="templateNameInput" placeholder="e.g. Default, Arabic, Bilingual">
+              </div>
+              <div class="form-group" style="display:flex;align-items:flex-end;gap:12px;padding-bottom:4px;">
+                <label class="toggle-switch">
+                  <input type="checkbox" id="templateIsDefault">
+                  <span class="toggle-slider"></span>
+                </label>
+                <span style="font-size:13px;">Set as Default</span>
+              </div>
             </div>
-          </div>
 
-          <input type="hidden" id="templateId" value="">
-          <input type="hidden" id="templateName" value="Default">
-          <div class="template-editor-wrapper">
-            <div>
-              <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">HTML Template</label>
-              <textarea class="form-control code" id="templateEditor" placeholder="Enter your HTML signature template..."></textarea>
+            <div style="margin-bottom:12px;">
+              <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">Available Variables (click to insert)</label>
+              <div class="template-vars">
+                <span class="template-var" onclick="ESM.insertTemplateVar('name')">{{name}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('name_ar')">{{name_ar}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('title')">{{title}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('title_ar')">{{title_ar}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('email')">{{email}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('phone')">{{phone}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('company_name')">{{company_name}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('company_name_ar')">{{company_name_ar}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('address')">{{address}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('website')">{{website}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('logo_url')">{{logo_url}}</span>
+                <span class="template-var" onclick="ESM.insertTemplateVar('default_phone')">{{default_phone}}</span>
+              </div>
             </div>
-            <div>
-              <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">Preview</label>
-              <div id="templatePreviewContent" style="border:1px solid var(--border);border-radius:var(--radius);padding:24px;min-height:400px;background:#fff;">
-                <p class="text-muted text-sm text-center" style="padding:40px;">Click "Preview" to see the rendered template</p>
+
+            <input type="hidden" id="templateId" value="">
+            <div class="template-editor-wrapper">
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">HTML Template</label>
+                <textarea class="form-control code" id="templateEditor" placeholder="Enter your HTML signature template..." oninput="ESM.livePreviewTemplate()"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:8px;display:block;">Live Preview</label>
+                <div id="templatePreviewContent" style="border:1px solid var(--border);border-radius:var(--radius);padding:24px;min-height:400px;background:#fff;">
+                  <p class="text-muted text-sm text-center" style="padding:40px;">Start typing to see live preview</p>
+                </div>
               </div>
             </div>
           </div>
@@ -993,23 +1059,35 @@ function renderDashboardPage(settings) {
     <form onsubmit="ESM.saveEmployee(event)">
       <div class="modal-body">
         <input type="hidden" id="empId" value="">
-        <div class="form-group">
-          <label>Full Name <span class="required">*</span></label>
-          <input class="form-control" type="text" id="empName" required placeholder="e.g. Jane Doe">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Full Name (English) <span class="required">*</span></label>
+            <input class="form-control" type="text" id="empName" required placeholder="e.g. Jane Doe">
+          </div>
+          <div class="form-group">
+            <label>الاسم (عربي)</label>
+            <input class="form-control" type="text" id="empNameAr" placeholder="مثال: جين دو" dir="rtl">
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label>Job Title</label>
+            <label>Job Title (English)</label>
             <input class="form-control" type="text" id="empTitle" placeholder="e.g. Marketing Manager">
+          </div>
+          <div class="form-group">
+            <label>المنصب (عربي)</label>
+            <input class="form-control" type="text" id="empTitleAr" placeholder="مثال: مدير التسويق" dir="rtl">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Email Address <span class="required">*</span></label>
+            <input class="form-control" type="email" id="empEmail" required placeholder="e.g. jane@example.com">
           </div>
           <div class="form-group">
             <label>Phone</label>
             <input class="form-control" type="text" id="empPhone" placeholder="e.g. +1 555-0123">
           </div>
-        </div>
-        <div class="form-group">
-          <label>Email Address <span class="required">*</span></label>
-          <input class="form-control" type="email" id="empEmail" required placeholder="e.g. jane@example.com">
         </div>
         <div class="form-group" style="display:flex;align-items:center;gap:12px;">
           <label style="margin:0;">Signature Enabled</label>
