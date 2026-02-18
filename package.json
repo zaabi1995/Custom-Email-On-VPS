@@ -16,11 +16,11 @@
     "management",
     "self-hosted"
   ],
-  "author": "",
+  "author": "Ali Adnan Haider Darwish Al-Zaabi",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/zaabi1995/Custom-Email-On-VPS.git"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -51,7 +51,7 @@ A self-hosted email signature management system with optional Postfix SMTP filte
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/email-signature-manager.git
+git clone https://github.com/zaabi1995/Custom-Email-On-VPS.git
 cd email-signature-manager
 
 # Install dependencies
