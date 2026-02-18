@@ -209,6 +209,10 @@ function generateSignatureHtml(employee, settings) {
     html = html.replace(/\{\{#phone\}\}(.*?)\{\{\/phone\}\}/gs, '');
   }
 
+  // Clean up empty Arabic/bilingual separators: remove " — " + empty spans
+  // If name_ar, title_ar are empty, strip the dash and empty span
+  html = html.replace(/<span[^>]*>\s*&mdash;\s*<\/span>\s*<span[^>]*dir="rtl"[^>]*>\s*<\/span>/g, '');
+
   return html;
 }
 
