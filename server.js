@@ -606,7 +606,7 @@ function renderLoginPage(settings, error) {
   return `<!DOCTYPE html>
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign In - ${escHtml(companyName)}</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg"><title>Sign In - ${escHtml(companyName)}</title>
 <link rel="stylesheet" href="${BASE_PATH}/static/css/app.css?v=${CACHE_BUST}">
 </head><body>
 <div class="login-page">
