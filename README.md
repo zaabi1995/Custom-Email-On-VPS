@@ -17,8 +17,10 @@ A self-hosted email signature management system with optional Postfix SMTP filte
 
 ### Core
 - **Employee Management** — Add, edit, delete, enable/disable employee signatures
+- **Bilingual / Arabic Support** — Full RTL support with Arabic name, title, and company fields; independent font family and size controls for English and Arabic
 - **Live Signature Preview** — See how signatures will look in real email clients
 - **Template Editor** — Customize signature HTML with a built-in editor and variable system
+- **Font & Size Controls** — Independent settings for English and Arabic: font family, name size, title size, company name size
 - **Logo Management** — Upload and manage company logos (PNG, GIF, SVG, JPEG)
 - **Activity Log** — Track all changes with a detailed audit trail
 
@@ -133,8 +135,11 @@ The included SMTP filter script (`scripts/signature-filter.py`) automatically ap
 ### How It Works
 1. Postfix routes outgoing email through a content filter on port 10024
 2. The filter queries the Email Signature Manager API to get the signature for the sender
-3. If found, the signature is appended to the email body (both HTML and plain text)
-4. The modified email is reinjected back to Postfix on port 10025
+3. If found, the signature is inserted before the reply chain (detects Outlook's `border-top:solid #E1E1E1` separator) or appended to the email body
+4. Converts plain-text emails to HTML before appending the signature
+5. Forces UTF-8 charset encoding (fixes Arabic character display issues)
+6. Appends a confidentiality disclaimer to all outgoing emails
+7. The modified email is reinjected back to Postfix on port 10025
 
 ### Setup
 
@@ -244,11 +249,21 @@ Use these variables in your signature templates:
 | `{{email}}` | Email address |
 | `{{phone}}` | Phone number |
 | `{{company_name}}` | Company name |
+| `{{name_ar}}` | Employee name in Arabic |
+| `{{title_ar}}` | Job title in Arabic |
 | `{{company_name_ar}}` | Company name (Arabic/secondary) |
 | `{{address}}` | Company address |
 | `{{website}}` | Company website |
 | `{{logo_url}}` | Full URL to the company logo |
 | `{{default_phone}}` | Default company phone |
+| `{{en_font}}` | English font family stack |
+| `{{ar_font}}` | Arabic font family stack |
+| `{{en_name_size}}` | English name font size (px) |
+| `{{ar_name_size}}` | Arabic name font size (px) |
+| `{{en_title_size}}` | English title font size (px) |
+| `{{ar_title_size}}` | Arabic title font size (px) |
+| `{{en_company_size}}` | English company name font size (px) |
+| `{{ar_company_size}}` | Arabic company name font size (px) |
 
 ### Conditional Sections
 ```
