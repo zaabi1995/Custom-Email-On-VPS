@@ -82,21 +82,56 @@ def append_to_part(part, html_sig, text_sig):
         return False
 
     if ct == 'text/html':
-        bc = re.search(r'</body>', content, re.IGNORECASE)
-        if bc:
-            content = content[:bc.start()] + '\n' + html_sig + '\n' + EMAIL_DISCLAIMER_HTML + '\n' + content[bc.start():]
+        sig_block = '\n' + html_sig + '\n' + EMAIL_DISCLAIMER_HTML + '\n'
+        # Try to insert BEFORE the quoted reply chain (not at the very bottom)
+        # Outlook uses a div with border-top:solid as the reply separator
+        reply_marker = re.search(
+            r'<div[^>]*style=["\'][^"\']*border-top:\s*solid\s+#[0-9a-fA-F]{6}',
+            content, re.IGNORECASE
+        )
+        if reply_marker:
+            # Walk back to find the parent <div> that wraps the entire reply block
+            # Insert signature just before the reply separator div
+            insert_pos = reply_marker.start()
+            content = content[:insert_pos] + sig_block + content[insert_pos:]
         else:
-            content = content + '\n' + html_sig + '\n' + EMAIL_DISCLAIMER_HTML
+            # No reply chain — insert before </body> as usual
+            bc = re.search(r'</body>', content, re.IGNORECASE)
+            if bc:
+                content = content[:bc.start()] + sig_block + content[bc.start():]
+            else:
+                content = content + sig_block
     elif ct == 'text/plain':
-        content = content + '\n\n' + text_sig + '\n' + EMAIL_DISCLAIMER_TEXT
+        # For plain text, insert before the reply marker line (e.g. "From:" or "-----Original Message-----")
+        reply_text_marker = re.search(
+            r'\n\s*(?:-----\s*Original Message\s*-----|-{2,}\s*Forwarded|From:\s+.*@)',
+            content
+        )
+        if reply_text_marker:
+            insert_pos = reply_text_marker.start()
+            content = content[:insert_pos] + '\n\n' + text_sig + '\n' + EMAIL_DISCLAIMER_TEXT + '\n' + content[insert_pos:]
+        else:
+            content = content + '\n\n' + text_sig + '\n' + EMAIL_DISCLAIMER_TEXT
     else:
         return False
 
-    encoded = quopri.encodestring(content.encode(charset, errors='replace'))
+    # Always use UTF-8 after appending signature (may contain Arabic)
+    encoded = quopri.encodestring(content.encode('utf-8', errors='replace'))
     part.set_payload(encoded.decode('ascii', errors='replace'))
+    part.set_charset(None)
     if 'Content-Transfer-Encoding' in part:
         del part['Content-Transfer-Encoding']
     part['Content-Transfer-Encoding'] = 'quoted-printable'
+    if 'Content-Type' in part:
+        ct = part['Content-Type']
+        # Replace charset with utf-8
+        import re as _re
+        if 'charset' in ct.lower():
+            new_ct = _re.sub(r'charset=[^\s;]+', 'charset=utf-8', ct, flags=_re.IGNORECASE)
+        else:
+            new_ct = ct.rstrip(';') + '; charset=utf-8'
+        del part['Content-Type']
+        part['Content-Type'] = new_ct
     return True
 
 def convert_plain_to_html_part(part):
@@ -120,34 +155,51 @@ def convert_plain_to_html_part(part):
         '</div>'
         '</body></html>'
     )
-    encoded = quopri.encodestring(html_body.encode(charset, errors='replace'))
+    encoded = quopri.encodestring(html_body.encode('utf-8', errors='replace'))
     part.set_payload(encoded.decode('ascii', errors='replace'))
     part.set_type('text/html')
+    # Force UTF-8 charset
+    if 'Content-Type' in part:
+        del part['Content-Type']
+    part['Content-Type'] = 'text/html; charset=utf-8'
     if 'Content-Transfer-Encoding' in part:
         del part['Content-Transfer-Encoding']
     part['Content-Transfer-Encoding'] = 'quoted-printable'
     return True
 
 def process_msg(msg, html_sig, text_sig):
-    if msg.is_multipart():
+    ct = msg.get_content_type()
+
+    if ct == 'multipart/alternative':
+        # Handle multipart/alternative correctly:
+        # Keep text/plain as text/plain, only append text sig
+        # Keep text/html as text/html, append HTML sig
+        # NEVER convert text/plain → text/html here (breaks Outlook)
         modified = False
         for part in msg.get_payload():
-            if part.is_multipart():
-                if process_msg(part, html_sig, text_sig):
+            if part.get_content_type() == 'text/html':
+                if append_to_part(part, html_sig, text_sig):
                     modified = True
-            elif part.get_content_type() in ('text/html', 'text/plain'):
-                # Convert plain-text parts to HTML first so signature always renders cleanly
-                if part.get_content_type() == 'text/plain':
-                    convert_plain_to_html_part(part)
+            elif part.get_content_type() == 'text/plain':
                 if append_to_part(part, html_sig, text_sig):
                     modified = True
         return modified
-    elif msg.get_content_type() == 'text/plain':
-        # Single plain-text email — convert to HTML then append signature
+
+    elif msg.is_multipart():
+        modified = False
+        for part in msg.get_payload():
+            if process_msg(part, html_sig, text_sig):
+                modified = True
+        return modified
+
+    elif ct == 'text/plain':
+        # Single plain-text email (no multipart) — convert to HTML then append
         convert_plain_to_html_part(msg)
         return append_to_part(msg, html_sig, text_sig)
-    elif msg.get_content_type() == 'text/html':
+
+    elif ct == 'text/html':
         return append_to_part(msg, html_sig, text_sig)
+
     return False
 
 class SignatureHandler:
@@ -182,7 +234,7 @@ class SignatureHandler:
 
         # Reinject via port 10025
         try:
-            smtp = smtplib.SMTP(REINJECT_HOST, REINJECT_PORT)
+            smtp = smtplib.SMTP(REINJECT_HOST, REINJECT_PORT, timeout=30)
             smtp.sendmail(sender, recipients, raw_data)
             smtp.quit()
             logger.info(f"Reinjected successfully")
