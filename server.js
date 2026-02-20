@@ -42,7 +42,9 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS employees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
+    name_ar TEXT NOT NULL DEFAULT '',
     title TEXT NOT NULL DEFAULT '',
+    title_ar TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
@@ -71,6 +73,15 @@ db.exec(`
     updated_at TEXT DEFAULT (datetime('now'))
   );
 `);
+
+// ── Migrations: add columns to existing DBs ───────────────────────────────────
+const migrations = [
+  "ALTER TABLE employees ADD COLUMN name_ar TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE employees ADD COLUMN title_ar TEXT NOT NULL DEFAULT ''",
+];
+for (const sql of migrations) {
+  try { db.exec(sql); } catch (_) { /* column already exists */ }
+}
 
 // Prepared statements
 const getSetting = db.prepare('SELECT value FROM settings WHERE key = ?');
@@ -176,7 +187,9 @@ function getLogoUrl(settings) {
     ? (settings.logo_gif || 'alali-logo.gif')
     : (settings.logo_png || 'alali-logo-official.png');
   const base = PUBLIC_URL || settings.public_url || '';
-  return `${base}${BASE_PATH}/uploads/${logoFile}`;
+  // PUBLIC_URL may already include BASE_PATH — strip it to avoid double path
+  const cleanBase = base.endsWith(BASE_PATH) ? base.slice(0, -BASE_PATH.length) : base;
+  return `${cleanBase}${BASE_PATH}/uploads/${logoFile}`;
 }
 
 function getActiveTemplate() {
@@ -612,7 +625,7 @@ function renderLoginPage(settings, error) {
 <div class="login-page">
   <div class="login-card">
     <div class="login-logo">
-      <img src="${BASE_PATH}/uploads/alali-logo.svg" alt="Logo" onerror="this.style.display='none'">
+      <img src="${BASE_PATH}/uploads/${getSetting.get('logo_gif')?.value || getSetting.get('logo_png')?.value || 'logo.svg'}" alt="Logo" onerror="this.style.display='none'">
     </div>
     <h1 class="login-title">Email Signature Manager</h1>
     <p class="login-subtitle">${escHtml(companyName)}</p>
@@ -728,7 +741,7 @@ function renderDashboardPage(settings) {
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <img src="${BASE_PATH}/uploads/alali-logo.svg" alt="Logo" onerror="this.src='${BASE_PATH}/uploads/alali-logo-official.png'">
+      <img src="${BASE_PATH}/uploads/${getSetting.get('logo_gif')?.value || getSetting.get('logo_png')?.value || 'logo.svg'}" alt="Logo" onerror="this.style.display='none'">
       <div class="sidebar-brand-text">
         <h2>${escHtml(companyName)}</h2>
         <span>Signature Manager</span>
