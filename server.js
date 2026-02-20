@@ -102,23 +102,28 @@ function isSetupComplete() {
 }
 
 // ============ DEFAULT SIGNATURE TEMPLATE ============
-const DEFAULT_TEMPLATE = `<div style="font-family: Arial, sans-serif; font-size: 13px; color: #333;">
-<hr style="border: none; border-top: 2px solid #2d6a4f; margin: 20px 0; width: 300px;">
-<table cellpadding="0" cellspacing="0" border="0">
+const DEFAULT_TEMPLATE = `<div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; max-width: 480px;">
+<hr style="border: none; border-top: 2px solid #1a1a2e; margin: 16px 0; width: 100%;">
+<table cellpadding="0" cellspacing="0" border="0" style="width:auto;">
 <tr>
-<td style="padding-right: 25px; vertical-align: middle; border-right: 2px solid #2d6a4f;">
-<img src="{{logo_url}}" alt="{{company_name}}" style="width: 90px; height: auto;">
+<td style="padding-right: 16px; vertical-align: middle; border-right: 2px solid #1a1a2e; white-space: nowrap;">
+<img src="{{logo_url}}" alt="{{company_name}}" style="width: 80px; height: 80px; display: block; object-fit: contain;">
 </td>
-<td style="padding-left: 25px; vertical-align: top;">
-<p style="margin: 0 0 4px 0; font-weight: bold; font-size: 15px; color: #034D57;">{{name}}</p>
-<p style="margin: 0 0 4px 0; font-size: 12px; color: #555;">{{title}}</p>
-<p style="margin: 0 0 4px 0; font-size: 12px; font-weight: bold; color: #2d6a4f;">{{company_name}}</p>
-<p style="margin: 0 0 4px 0; font-size: 12px;"><a href="mailto:{{email}}" style="color: #034D57; text-decoration: none;">{{email}}</a>{{#phone}} | {{phone}}{{/phone}}</p>
-<p style="margin: 0 0 4px 0; font-size: 12px;"><a href="https://{{website}}" style="color: #2d6a4f; text-decoration: none;">{{website}}</a></p>
-<p style="margin: 0; font-size: 12px; color: #666;">{{address}}</p>
+<td style="padding-left: 16px; vertical-align: top;">
+<p style="margin: 0 0 2px 0; font-weight: bold; font-size: 15px; color: #1a1a2e;">{{name}}</p>
+<p style="margin: 0 0 2px 0; font-size: 12px; color: #666;">{{title}}</p>
+<p style="margin: 0 0 8px 0; font-size: 12px; font-weight: bold; color: #1a1a2e;">{{company_name}}</p>
+<p style="margin: 0 0 2px 0; font-size: 12px;"><a href="mailto:{{email}}" style="color: #1a1a2e; text-decoration: none;">{{email}}</a></p>
+<p style="margin: 0 0 2px 0; font-size: 12px; color: #555;">{{phone}}</p>
+<p style="margin: 0 0 2px 0; font-size: 12px;"><a href="https://{{website}}" style="color: #555; text-decoration: none;">{{website}}</a></p>
+<p style="margin: 0; font-size: 11px; color: #888;">{{address}}</p>
 </td>
 </tr>
 </table>
+<div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid #e0e0e0;">
+  <p style="margin: 0 0 6px 0; font-size: 11px; color: #27ae60;">🌿 <em>Please consider the environment before printing this email.</em></p>
+  <p style="margin: 0; font-size: 10px; color: #999; line-height: 1.5;">This e-mail contains confidential information belonging to the issuing party and is intended solely for the addressees. The unauthorized disclosure, use, dissemination or copying (either whole or partial) of this e-mail, or any information it contains, is prohibited. E-mails are susceptible to alteration and their integrity cannot be guaranteed. The issuing party shall not be liable for this e-mail if modified or falsified.</p>
+</div>
 </div>`;
 
 // Ensure default template exists
