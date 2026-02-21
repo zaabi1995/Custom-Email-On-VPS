@@ -18,6 +18,9 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'data', 'signatures.
 const CACHE_BUST = Date.now(); // busts browser cache on restart
 const UPLOADS_DIR = path.join(__dirname, 'uploads');
 const SESSION_SECRET = process.env.SESSION_SECRET || 'esm-secret-' + Math.random().toString(36).slice(2);
+// Auto-login token — used by the ERP admin dashboard to bypass password entry
+// Only works from trusted origin (erp.alali.om). Change if compromised.
+const AUTO_LOGIN_TOKEN = process.env.AUTO_LOGIN_TOKEN || 'KS351D03ImM-LCGxhC3JSTsjQFWJPCtcBxswpj6yuIU';
 const PUBLIC_URL = process.env.PUBLIC_URL || ''; // e.g. https://yourdomain.com
 const SMTP_HOST = process.env.SMTP_HOST || 'localhost';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '25');
@@ -250,6 +253,17 @@ function escHtml(str) {
 }
 
 // ============ AUTH ROUTES ============
+// Auto-login from ERP (token-gated, only for trusted admin access)
+app.get(BASE_PATH + '/auto-login', (req, res) => {
+  const { token, redirect } = req.query;
+  if (!token || token !== AUTO_LOGIN_TOKEN) {
+    return res.status(403).send('Access denied');
+  }
+  req.session.authenticated = true;
+  const dest = redirect || (BASE_PATH + '/dashboard');
+  return res.redirect(dest);
+});
+
 app.get(BASE_PATH + '/login', (req, res) => {
   const error = req.query.error ? 'Invalid password' : '';
   const settings = getAllSettings();

@@ -78,24 +78,62 @@ def append_to_part(part, html_sig, text_sig):
     except:
         return False
 
-    if 'alali investment spc' in content.lower():
+    # Use a unique marker to detect if OUR filter already added a signature to THIS email.
+    # IMPORTANT: only check the NEW text above the reply separator — NOT the quoted original,
+    # which may already contain the marker from a previous message in the thread.
+    # Strategy: find the first reply separator position, then only check for the marker above it.
+    reply_separator_patterns = [
+        r'<div[^>]*id=["\']mail-editor-reference-message-container["\']',
+        r'<div[^>]*class=["\'][^"\']*ms-outlook-mobile-reference-message[^"\']*["\']',
+        r'<blockquote[^>]*type=["\']cite["\']',
+        r'<div[^>]*class=["\'][^"\']*gmail_quote[^"\']*["\']',
+        r'<div[^>]*id=["\']divRplyFwdMsg["\']',
+        r'<div[^>]*style=["\'][^"\']*border-top:\s*solid[^"\']*["\']',
+        r'<div[^>]*style=["\'][^"\']*border-top-style:\s*solid[^"\']*["\']',
+    ]
+    check_up_to = len(content)  # by default check full content
+    for rp in reply_separator_patterns:
+        m = re.search(rp, content, re.IGNORECASE)
+        if m and m.start() > 0:
+            check_up_to = min(check_up_to, m.start())
+            break
+    if '<!-- ALALI-SIG-ADDED -->' in content[:check_up_to]:
         return False
 
     if ct == 'text/html':
-        sig_block = '\n' + html_sig + '\n' + EMAIL_DISCLAIMER_HTML + '\n'
-        # Try to insert BEFORE the quoted reply chain (not at the very bottom)
-        # Outlook uses a div with border-top:solid as the reply separator
-        reply_marker = re.search(
-            r'<div[^>]*style=["\'][^"\']*border-top:\s*solid\s+#[0-9a-fA-F]{6}',
-            content, re.IGNORECASE
-        )
-        if reply_marker:
-            # Walk back to find the parent <div> that wraps the entire reply block
-            # Insert signature just before the reply separator div
-            insert_pos = reply_marker.start()
+        sig_block = '\n<!-- ALALI-SIG-ADDED -->\n' + html_sig + '\n' + EMAIL_DISCLAIMER_HTML + '\n'
+        # Detect the start of the quoted/forwarded reply chain across all major clients:
+        # 1. Apple Mail / standard: <blockquote type="cite"
+        # 2. Gmail: <div class="gmail_quote"
+        # 3. Outlook Web App: <div id="divRplyFwdMsg"
+        # 4. Outlook Desktop: <div style="border-top:solid #XXXXXX"
+        # 5. Outlook Mobile/New: <div id="mail-editor-reference-message-container"
+        # 6. Outlook Mobile quoted block: class="ms-outlook-mobile-reference-message"
+        # 7. Outlook longhand border-top: border-top-style: solid
+        # 8. Generic: <div class="...quote..." or similar
+        reply_patterns = [
+            r'<blockquote[^>]*type=["\']cite["\']',                              # Apple Mail
+            r'<div[^>]*class=["\'][^"\']*gmail_quote[^"\']*["\']',               # Gmail
+            r'<div[^>]*id=["\']divRplyFwdMsg["\']',                              # Outlook Web (OWA)
+            r'<div[^>]*id=["\']mail-editor-reference-message-container["\']',   # Outlook Mobile/New
+            r'<div[^>]*class=["\'][^"\']*ms-outlook-mobile-reference-message[^"\']*["\']',  # Outlook Mobile quoted
+            r'<div[^>]*style=["\'][^"\']*border-top:\s*solid[^"\']*["\']',       # Outlook Desktop shorthand
+            r'<div[^>]*style=["\'][^"\']*border-top-style:\s*solid[^"\']*["\']', # Outlook Desktop longhand
+            r'<div[^>]*style=["\'][^"\']*border-top-width[^"\']*["\']',          # Outlook Mobile longhand border
+            r'<blockquote[^>]*>',                                                 # Any blockquote (Yahoo, etc.)
+            r'<div[^>]*class=["\'][^"\']*(?:quote|reply|forward)[^"\']*["\']',   # Generic
+        ]
+        insert_pos = None
+        for pattern in reply_patterns:
+            m = re.search(pattern, content, re.IGNORECASE)
+            if m:
+                insert_pos = m.start()
+                break
+
+        if insert_pos is not None:
             content = content[:insert_pos] + sig_block + content[insert_pos:]
         else:
-            # No reply chain — insert before </body> as usual
+            # No reply chain — insert before </body>
             bc = re.search(r'</body>', content, re.IGNORECASE)
             if bc:
                 content = content[:bc.start()] + sig_block + content[bc.start():]
@@ -175,13 +213,20 @@ def process_msg(msg, html_sig, text_sig):
         # Keep text/plain as text/plain, only append text sig
         # Keep text/html as text/html, append HTML sig
         # NEVER convert text/plain → text/html here (breaks Outlook)
+        # Also handle multipart/mixed or other nested multiparts (e.g. Apple Mail with attachments)
         modified = False
         for part in msg.get_payload():
-            if part.get_content_type() == 'text/html':
+            pct = part.get_content_type()
+            if pct == 'text/html':
                 if append_to_part(part, html_sig, text_sig):
                     modified = True
-            elif part.get_content_type() == 'text/plain':
+            elif pct == 'text/plain':
                 if append_to_part(part, html_sig, text_sig):
+                    modified = True
+            elif part.is_multipart():
+                # e.g. multipart/mixed inside multipart/alternative (Apple Mail with attachments)
+                # Recurse to find and update text/html inside
+                if process_msg(part, html_sig, text_sig):
                     modified = True
         return modified
 
